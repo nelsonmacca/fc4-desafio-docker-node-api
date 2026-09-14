@@ -1,5 +1,8 @@
-# Ambiente de desenvolvimento: db -> migrate -> app
+# Ambiente de desenvolvimento: db -> migrate -> app (+ adminer, opcional)
 # Todos os valores configuraveis vem do arquivo .env (copie .env.example).
+#
+# Hot reload:      docker compose watch        (ou: docker compose up --watch)
+# Ferramentas:     docker compose --profile tools up -d   (sobe tambem o adminer)
 name: flags-api
 
 # Build compartilhado entre `migrate` e `app`: mesma imagem do estagio dev,
@@ -55,6 +58,53 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    networks:
+      - backend
+    # Hot reload nativo do Compose (sem bind mount de codigo-fonte).
+    # Cada arquivo que o Dockerfile copia para a imagem tem uma regra aqui:
+    develop:
+      watch:
+        # Codigo: copiado para dentro do container; o `tsx watch` (CMD do
+        # estagio dev) percebe a mudanca e reinicia o processo. Sem rebuild.
+        - action: sync
+          path: ./src
+          target: /app/src
+        # Manifestos de dependencias: invalidam a camada `npm ci`, entao a
+        # imagem precisa ser reconstruida e o container recriado.
+        - action: rebuild
+          path: ./package.json
+        # package-lock.json tambem dispara rebuild: `npm ci` instala exatamente
+        # o que esta no lock, e ele pode mudar sem alterar package.json
+        # (ex.: `npm update` em dependencia transitiva, ou lock regenerado).
+        - action: rebuild
+          path: ./package-lock.json
+        # tsconfig.json e lido pelo tsx apenas na inicializacao: basta copiar
+        # e reiniciar o container (nao invalida camadas de dependencias).
+        - action: sync+restart
+          path: ./tsconfig.json
+          target: /app/tsconfig.json
+
+  # Ferramenta opcional (profile `tools`): interface web para o PostgreSQL.
+  # Nao sobe no `docker compose up` normal; apenas com `--profile tools`.
+  adminer:
+    # Tag explicitamente versionada da imagem oficial (sem `latest`).
+    # Verificada no Docker Hub em 2026-09-14: mesmo digest para o qual
+    # `adminer:latest` aponta hoje.
+    image: adminer:6.0.1-standalone
+    profiles:
+      - tools
+    environment:
+      # Pre-preenche o campo "Servidor" do login com host:porta do servico db
+      # (o unico ajuste de conexao que a imagem oficial oferece via ambiente).
+      # Usuario, senha e banco sao digitados na propria interface, com os
+      # valores de DB_USER / DB_PASSWORD / DB_NAME do .env; nada de credencial
+      # aqui.
+      ADMINER_DEFAULT_SERVER: db:${DB_PORT:?defina DB_PORT no .env}
+    ports:
+      - "8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - backend
 
