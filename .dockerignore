@@ -1,0 +1,40 @@
+# Dependencias e artefatos de build
+# Sao instalados/gerados dentro da imagem (npm ci / tsc). Copiar os do host
+# quebraria binarios nativos e invalidaria o cache de camadas a cada build.
+node_modules
+dist
+
+# Controle de versao
+# O historico do git nao e necessario no build e e o maior item do contexto.
+.git
+.gitignore
+.gitattributes
+
+# Segredos e configuracao local
+# Nunca devem entrar em camadas da imagem; em runtime vem do compose/.env.
+.env
+.env.*
+
+# Arquivos de containerizacao
+# Nao sao usados dentro da imagem (o BuildKit envia o Dockerfile a parte).
+Dockerfile
+.dockerignore
+compose*.yaml
+compose*.yml
+docker-compose*.yml
+
+# Documentacao e relatorios
+# Nao participam do build nem do runtime da aplicacao.
+*.md
+reports
+
+# Editores, sistema operacional, logs e ferramentas de IA
+# Ruido do ambiente local; nao pertence a imagem.
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+coverage
+.claude
