@@ -1,0 +1,66 @@
+# Ambiente de desenvolvimento: db -> migrate -> app
+# Todos os valores configuraveis vem do arquivo .env (copie .env.example).
+name: flags-api
+
+# Build compartilhado entre `migrate` e `app`: mesma imagem do estagio dev,
+# sem implementacao paralela. O BuildKit reaproveita o cache entre os dois.
+x-app-build: &app-build
+  context: .
+  target: dev
+
+services:
+  db:
+    image: postgres:17.11-alpine3.24
+    environment:
+      POSTGRES_USER: ${DB_USER:?defina DB_USER no .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      POSTGRES_DB: ${DB_NAME:?defina DB_NAME no .env}
+      # O servidor escuta na mesma porta que a aplicacao usa para conectar.
+      PGPORT: ${DB_PORT:?defina DB_PORT no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      # -h 127.0.0.1 forca TCP: o servidor temporario do initdb escuta apenas
+      # em socket unix, entao o healthcheck so passa quando o servidor
+      # definitivo estiver aceitando conexoes de rede.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # One-shot: aplica as migracoes pendentes e termina com exit code 0.
+  # Sem restart policy (padrao "no"), como deve ser para um job.
+  migrate:
+    build: *app-build
+    image: flags-api:dev
+    env_file: .env
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  app:
+    build: *app-build
+    image: flags-api:dev
+    env_file: .env
+    ports:
+      - "${PORT:?defina PORT no .env}:${PORT}"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+    driver: bridge
