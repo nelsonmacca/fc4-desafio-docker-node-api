@@ -275,7 +275,7 @@ Retorna `1000`.
 
 O `HEALTHCHECK` está declarado na própria imagem `production`, não apenas no compose:
 
-- Executa `node -e` com o módulo `http` nativo, sem `curl` ou `wget` (a Alpine não os traz e a imagem não os instala).
+- Executa `node -e` com o módulo `http` nativo e não depende de `curl` ou `wget`. A imagem não traz `curl`; embora o BusyBox disponibilize `wget`, usar o módulo HTTP nativo do Node evita dependência de binários externos para a verificação de saúde.
 - Consulta `GET /health` em `127.0.0.1:${PORT}` (fallback 3000). Exit 0 somente para HTTP 2xx; exit 1 para erro de conexão, timeout ou status fora de 2xx (por exemplo 503 com banco indisponível).
 - Parâmetros: `interval=30s`, `timeout=5s`, `start-period=10s`, `retries=3`.
 - O `compose.prod.yaml` não redefine `healthcheck:`, então o Compose herda o da imagem e o usa para reportar `healthy` em `ps`.
