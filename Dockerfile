@@ -70,8 +70,9 @@ RUN npm run build
 #     cujas dependencias (express, pg, dotenv) sao JS puro e nao dependem de
 #     glibc nem de binarios nativos.
 # Alpine mantem uma unica ARG de versao para todos os estagios, o usuario
-# `node` (uid 1000) da imagem oficial e a menor imagem que ainda permite
-# instalar/inspecionar com npm e shell.
+# `node` (uid 1000) da imagem oficial e um shell para inspecao. O npm da
+# imagem base e usado apenas durante o build (`npm ci --omit=dev`) e removido
+# do runtime ao final deste estagio para reduzir a superficie de ataque.
 FROM node:${NODE_VERSION} AS production
 
 # Metadados OCI. Valores que mudam a cada publicacao chegam por --build-arg
@@ -88,6 +89,16 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
+# Correcao de seguranca (como root): a base traz libssl3/libcrypto3 3.5.7-r0
+# (CVE-2026-63073 e CVE-2026-75803, CRITICAL); o Alpine 3.24 ja publica o
+# 3.5.8-r0. Atualizamos somente esses dois pacotes do sistema.
+# Observacao: o binario `node` desta imagem e linkado estaticamente com o
+# OpenSSL embutido (process.config.variables.node_shared_openssl=false), logo
+# process.versions.openssl continua reportando a versao compilada no Node
+# (3.5.7) ate uma nova release do Node; so uma nova tag da imagem base corrige
+# isso, o que nao faz parte desta etapa.
+RUN apk upgrade --no-cache libssl3 libcrypto3
+
 RUN chown node:node /app
 USER node
 
@@ -99,6 +110,18 @@ COPY --chown=node:node package.json package-lock.json ./
 # Mesmo mount de cache do npm dos outros estagios (uid/gid do usuario node).
 RUN --mount=type=cache,target=/home/node/.npm,uid=1000,gid=1000 \
     npm ci --omit=dev --no-audit --no-fund
+
+# npm so e necessario ate aqui (build). O runtime executa `node dist/server.js`
+# e nunca chama npm/npx, entao removemos o npm global e seus executaveis para
+# reduzir a superficie de ataque: as dependencias vulneraveis embutidas em
+# /usr/local/lib/node_modules/npm (tar, brace-expansion, picomatch, pacote,
+# sigstore, ...) deixam de existir na imagem. Caminhos verificados na base:
+# `npm root -g` = /usr/local/lib/node_modules e npm/npx sao symlinks em
+# /usr/local/bin apontando para ../lib/node_modules/npm/bin/*-cli.js.
+# Os arquivos pertencem a root, por isso a remocao exige root.
+USER root
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+USER node
 
 # Artefato compilado vindo do estagio build; TypeScript nunca entra aqui.
 COPY --from=build --chown=node:node /app/dist ./dist

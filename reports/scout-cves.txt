@@ -1,0 +1,51 @@
+    v SBOM of image already cached, 108 packages indexed
+    x Detected 1 vulnerable package with 2 vulnerabilities
+
+
+## Overview
+
+                   │                       Analyzed Image                       
+───────────────────┼────────────────────────────────────────────────────────────
+ Target            │  nelsonmacca/fc4-desafio-docker-node-api:1.0.0             
+   digest          │  2ed1557baae3                                              
+   platform        │ linux/amd64                                                
+   provenance      │ https://github.com/nelsonmacca/fc4-desafio-docker-node-api 
+                   │  https://github.com/nelsonmacca/fc4-desafio-docker-node-api/blob/7f7b349cfb4422ee2fadaba63a94934ce12afd38                  
+   vulnerabilities │    0C     0H     2M     0L                                 
+   size            │ 62 MB                                                      
+   packages        │ 108                                                        
+
+
+## Packages and Vulnerabilities
+
+   0C     0H     2M     0L  qs 6.15.3
+pkg:npm/qs@6.15.3
+
+    x MEDIUM CVE-2026-82562 [Allocation of Resources Without Limits or Throttling]
+      https://scout.docker.com/v/CVE-2026-82562?s=github&n=qs&t=npm&vr=%3E%3D6.14.2%2C%3C%3D6.15.3
+      Affected range : >=6.14.2                                                        
+                     : <=6.15.3                                                        
+      Fixed version  : 6.16.0                                                          
+      CVSS Score     : 6.3                                                             
+      CVSS Vector    : CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:N 
+    
+    x MEDIUM CVE-2026-82417 [Uncaught Exception]
+      https://scout.docker.com/v/CVE-2026-82417?s=github&n=qs&t=npm&vr=%3E%3D2.2.5%2C%3C6.16.0
+      Affected range : >=2.2.5                                                         
+                     : <6.16.0                                                         
+      Fixed version  : 6.16.0                                                          
+      CVSS Score     : 6.3                                                             
+      CVSS Vector    : CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:N 
+    
+
+
+2 vulnerabilities found in 1 package
+  CRITICAL  0 
+  HIGH      0 
+  MEDIUM    2 
+  LOW       0 
+
+
+What's next:
+    View base image update recommendations → docker scout recommendations nelsonmacca/fc4-desafio-docker-node-api:1.0.0
+
