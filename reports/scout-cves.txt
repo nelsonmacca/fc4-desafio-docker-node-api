@@ -7,10 +7,10 @@
                    │                       Analyzed Image                       
 ───────────────────┼────────────────────────────────────────────────────────────
  Target            │  nelsonmacca/fc4-desafio-docker-node-api:1.0.0             
-   digest          │  2ed1557baae3                                              
+   digest          │  b21be5df84c0                                              
    platform        │ linux/amd64                                                
    provenance      │ https://github.com/nelsonmacca/fc4-desafio-docker-node-api 
-                   │  https://github.com/nelsonmacca/fc4-desafio-docker-node-api/blob/7f7b349cfb4422ee2fadaba63a94934ce12afd38                  
+                   │  https://github.com/nelsonmacca/fc4-desafio-docker-node-api/blob/b99b90c7d7ac6d628f2bb0c6081c8a97e027a120                  
    vulnerabilities │    0C     0H     2M     0L                                 
    size            │ 62 MB                                                      
    packages        │ 108                                                        
