@@ -1,0 +1,108 @@
+# Ambiente de producao local: db -> migrate -> app
+#
+# Consome EXCLUSIVAMENTE a imagem publicada no Docker Hub (sem `build:`).
+# Todos os valores configuraveis vem do arquivo .env (copie .env.example).
+#
+# Fluxo do avaliador:
+#   cp .env.example .env
+#   docker compose -f compose.prod.yaml up -d
+#
+# Nome de projeto distinto do compose.yaml (`flags-api`): os containers,
+# o volume e a network deste ambiente nao colidem com os do ambiente de
+# desenvolvimento (flags-api-prod_pgdata / flags-api-prod_backend).
+name: flags-api-prod
+
+# Imagem publicada, com tag explicitamente versionada (nunca tag flutuante).
+# Multi-arch (linux/amd64 + linux/arm64), com SBOM e provenance.
+# Compartilhada entre `migrate` e `app`: o mesmo artefato que roda a API
+# aplica as migracoes compiladas (dist/db/migrate.js).
+x-published-image: &published-image nelsonmacca/fc4-desafio-docker-node-api:1.0.0
+
+services:
+  db:
+    # Mesma tag do ambiente de desenvolvimento aprovado (compose.yaml).
+    image: postgres:17.11-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?defina DB_USER no .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      POSTGRES_DB: ${DB_NAME:?defina DB_NAME no .env}
+      # O servidor escuta na mesma porta que a aplicacao usa para conectar.
+      PGPORT: ${DB_PORT:?defina DB_PORT no .env}
+    # Sem `ports:`: o PostgreSQL so e alcancavel pela network interna
+    # (migrate e app resolvem `db` via DNS do Compose). Nada exposto ao host.
+    volumes:
+      # Volume nomeado: os dados sobrevivem a `down` (sem -v) e a recriacao
+      # do container.
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      # -h 127.0.0.1 forca TCP: o servidor temporario do initdb escuta apenas
+      # em socket unix, entao o healthcheck so passa quando o servidor
+      # definitivo estiver aceitando conexoes de rede.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    # Limites aplicados pelo Docker Compose local (nao apenas Swarm):
+    # cpus -> HostConfig.NanoCpus, memory -> HostConfig.Memory.
+    # 1 CPU e 512 MB: o PostgreSQL 17 com shared_buffers padrao (128 MB) mais
+    # work_mem/conexoes desta API (pool max 5-10) fica bem abaixo disso, e o
+    # teto evita que o banco monopolize o host do avaliador.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # One-shot: aplica as migracoes pendentes e termina com exit code 0.
+  # Sem restart policy (padrao "no"), como deve ser para um job.
+  # Sem limites de recursos: execucao unica de poucos segundos.
+  migrate:
+    image: *published-image
+    env_file: .env
+    # Runner COMPILADO (dist/), executado direto pelo Node: a imagem de
+    # producao nao contem npm nem tsx (removidos intencionalmente).
+    command: ["node", "dist/db/migrate.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  app:
+    image: *published-image
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # API publicada em http://localhost:PORT (PORT vem do .env).
+      - "${PORT:?defina PORT no .env}:${PORT}"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    # Sem `healthcheck:` aqui: o Compose preserva o HEALTHCHECK definido na
+    # imagem (GET /health via Node, interval 30s, start_period 10s, retries 3).
+    # Sem `volumes:`: nenhum bind mount de codigo-fonte; a imagem e imutavel.
+    # 1 CPU e 256 MB: a API (Express + pg) em Node 22 usa ~60-80 MB em
+    # regime; o teto acomoda picos de GC/heap com folga e limita o impacto
+    # de um eventual vazamento de memoria.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+volumes:
+  # Persistencia do PostgreSQL (nome final: flags-api-prod_pgdata).
+  pgdata:
+
+networks:
+  # Network interna do ambiente (nome final: flags-api-prod_backend).
+  backend:
+    driver: bridge
